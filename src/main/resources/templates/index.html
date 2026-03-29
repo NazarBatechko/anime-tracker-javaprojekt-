@@ -1,0 +1,28 @@
+<h2>Fetch Movies</h2>
+
+<div>
+    <button onclick="fetchApi()">Fetch from API</button>
+</div>
+
+<div>
+    <label>HTML URL:</label>
+    <input type="text" id="htmlUrl" value="https://example.com/movies.html"/>
+    <button onclick="fetchHtml()">Fetch from HTML</button>
+</div>
+
+<script>
+    function fetchApi() {
+        fetch('/api/fetch/api')
+            .then(r => r.text())
+            .then(alert)
+            .finally(() => location.reload());
+    }
+
+    function fetchHtml() {
+        const url = document.getElementById("htmlUrl").value;
+        fetch(`/api/fetch/html?url=${encodeURIComponent(url)}`)
+            .then(r => r.text())
+            .then(alert)
+            .finally(() => location.reload());
+    }
+</script>
