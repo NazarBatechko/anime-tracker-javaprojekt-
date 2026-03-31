@@ -23,6 +23,8 @@ public class Movie {
     @Column(length = 1000) // для довгих назв
     private String title;
 
+    // Змінюємо тільки це місце:
+    @Column(name = "release_year")
     private String year;
 
     @ManyToMany

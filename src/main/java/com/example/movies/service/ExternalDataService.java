@@ -19,10 +19,6 @@ public class ExternalDataService {
     private final ActorRepository actorRepository;
     private final GenreRepository genreRepository;
 
-    // API-ключ потрібен тільки для захищених ендпоінтів api.simkl.com
-    // Для публічних trending-файлів він не потрібен
-    private static final String SIMKL_API_KEY = "d5bbb687eafb0ad0565de52972ccbee56338acb698946b55a579fca01a87d92a";
-
     public ExternalDataService(MovieRepository movieRepository,
                                ActorRepository actorRepository,
                                GenreRepository genreRepository) {
@@ -31,10 +27,10 @@ public class ExternalDataService {
         this.genreRepository = genreRepository;
     }
 
-    // --- Фетч trending movies (виправлений URL) ---
+    // --- Збір трендових Аніме через API ---
     public void fetchMoviesFromApi() throws IOException {
-        // Правильний публічний URL (без потреби в API-ключі)
-        String urlString = "https://data.simkl.in/discover/trending/movies/today_100.json";
+        // Змінюємо URL з movies на anime
+        String urlString = "https://data.simkl.in/discover/trending/anime/today_100.json";
 
         URL url = new URL(urlString);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -42,11 +38,9 @@ public class ExternalDataService {
         connection.setRequestMethod("GET");
         connection.setRequestProperty("Accept", "application/json");
         connection.setConnectTimeout(10000);
-        connection.setReadTimeout(15000);
 
-        int responseCode = connection.getResponseCode();
-        if (responseCode != HttpURLConnection.HTTP_OK) {
-            throw new IOException("Failed to fetch trending movies. HTTP code: " + responseCode);
+        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Помилка запиту API: " + connection.getResponseCode());
         }
 
         try (var inputStream = connection.getInputStream()) {
@@ -54,27 +48,28 @@ public class ExternalDataService {
 
             if (root.isArray()) {
                 for (JsonNode node : root) {
-                    Movie movie = new Movie();
-                    movie.setTitle(node.path("title").asText(null));
-                    movie.setYear(node.path("year").asText(null));
-                    movie.setOverview(node.path("overview").asText(null));
-                    movie.setPosterUrl(node.path("images").path("poster").asText(null));
+                    String title = node.path("title").asText(null);
+                    if (title == null || title.isBlank()) continue; // Пропускаємо порожні записи
 
-                    // Якщо в JSON є поля actors/genres — парсинг працюватиме
-                    movie.setActors(parseActors(node));
-                    movie.setGenres(parseGenres(node));
+                    Movie anime = new Movie();
+                    anime.setTitle(title);
+                    anime.setYear(node.path("year").asText("N/A"));
+                    anime.setOverview(node.path("overview").asText("Опис аніме відсутній..."));
+                    anime.setPosterUrl(node.path("images").path("poster").asText(null));
 
-                    movieRepository.save(movie);
+                    // Зберігаємо акторів озвучки та жанри
+                    anime.setActors(parseActors(node));
+                    anime.setGenres(parseGenres(node));
+
+                    movieRepository.save(anime);
                 }
-            } else {
-                System.out.println("Response is not an array: " + root);
             }
         } finally {
             connection.disconnect();
         }
     }
 
-    // --- Парс HTML сторінки (виправлений вивід помилки) ---
+    // --- Парсинг Аніме з HTML сторінки (наприклад, MyAnimeList або схожі) ---
     public void fetchMoviesFromHtml(String htmlUrl) throws IOException {
         try {
             var doc = Jsoup.connect(htmlUrl)
@@ -82,22 +77,25 @@ public class ExternalDataService {
                     .timeout(10000)
                     .get();
 
-            doc.select("div.movie").forEach(element -> {
-                Movie movie = new Movie();
-                movie.setTitle(element.select("h2.title").text());
-                movie.setOverview(element.select("p.overview").text());
-
-                movie.setActors(new HashSet<>());
-                movie.setGenres(new HashSet<>());
-
-                movieRepository.save(movie);
+            // Змінюємо селектори під стандартні списки аніме
+            // Зазвичай аніме йдуть у блоках div або li
+            doc.select("div.anime-card, .title").forEach(element -> {
+                String title = element.text();
+                if (!title.isEmpty()) {
+                    Movie anime = new Movie();
+                    anime.setTitle(title);
+                    anime.setOverview("Парсинг з HTML: " + htmlUrl);
+                    anime.setActors(new HashSet<>());
+                    anime.setGenres(new HashSet<>());
+                    movieRepository.save(anime);
+                }
             });
-        } catch (org.jsoup.HttpStatusException e) {
-            throw new IOException("Failed to fetch HTML. Status=" + e.getStatusCode() + ", URL=" + htmlUrl, e);
+        } catch (Exception e) {
+            throw new IOException("Помилка парсингу HTML: " + e.getMessage());
         }
     }
 
-    // --- Допоміжні методи (без змін) ---
+    // --- Обробка персонажів/акторів (без змін, працює універсально) ---
     private HashSet<Actor> parseActors(JsonNode node) {
         HashSet<Actor> actorsSet = new HashSet<>();
         if (node.has("actors")) {
@@ -113,6 +111,7 @@ public class ExternalDataService {
         return actorsSet;
     }
 
+    // --- Обробка жанрів ---
     private HashSet<Genre> parseGenres(JsonNode node) {
         HashSet<Genre> genresSet = new HashSet<>();
         if (node.has("genres")) {

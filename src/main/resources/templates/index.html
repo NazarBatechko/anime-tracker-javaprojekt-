@@ -1,28 +1,82 @@
-<h2>Fetch Movies</h2>
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Anime Tracker Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 40px; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #2980b9; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 5px; width: 300px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #ecf0f1; color: #2c3e50; }
+        tr:hover { background-color: #f9f9f9; }
+        .badge { background: #e74c3c; color: white; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
+    </style>
+</head>
+<body>
 
-<div>
-    <button onclick="fetchApi()">Fetch from API</button>
-</div>
+<div class="container">
+    <h2>⛩️ Anime Tracker v1.0 <small>(Data Collector)</small></h2>
 
-<div>
-    <label>HTML URL:</label>
-    <input type="text" id="htmlUrl" value="https://example.com/movies.html"/>
-    <button onclick="fetchHtml()">Fetch from HTML</button>
+    <div class="controls">
+        <button onclick="fetchApi()">🚀 Завантажити ТОП-100 Аніме</button>
+
+        <span>або</span>
+
+        <input type="text" id="htmlUrl" placeholder="Вставте посилання на сторінку аніме..."/>
+        <button onclick="fetchHtml()" style="background: #27ae60;">🔍 Парсити HTML</button>
+    </div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Назва тайтлу</th>
+            <th>Опис</th>
+        </tr>
+        </thead>
+        <tbody id="movieTable">
+        <tr th:each="anime : ${movies}">
+            <td th:text="${anime.id}">1</td>
+            <td><strong th:text="${anime.title}">Назва</strong></td>
+            <td th:text="${#strings.abbreviate(anime.overview, 100)}">Опис...</td>
+        </tr>
+        </tbody>
+    </table>
 </div>
 
 <script>
     function fetchApi() {
+        // Показуємо статус завантаження
+        const btn = event.target;
+        btn.innerText = "⏳ Завантаження...";
+
         fetch('/api/fetch/api')
             .then(r => r.text())
-            .then(alert)
-            .finally(() => location.reload());
+            .then(msg => {
+                alert("Успішно: " + msg);
+                location.reload(); // Оновлюємо сторінку, щоб побачити нові дані в таблиці
+            })
+            .catch(err => alert("Помилка: " + err));
     }
 
     function fetchHtml() {
         const url = document.getElementById("htmlUrl").value;
+        if(!url) return alert("Введіть URL!");
+
         fetch(`/api/fetch/html?url=${encodeURIComponent(url)}`)
             .then(r => r.text())
-            .then(alert)
-            .finally(() => location.reload());
+            .then(msg => {
+                alert("Результат парсингу: " + msg);
+                location.reload();
+            });
     }
 </script>
+
+</body>
+</html>
